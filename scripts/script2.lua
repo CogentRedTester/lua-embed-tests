@@ -8,6 +8,6 @@ end
 
 foo()
 
-api.register_parser("test2", function(file)
-    print("received "..file)
+api.register_parser("script2", function(file)
+    print("received", file)
 end)

@@ -4,8 +4,7 @@
 // API api;
 
 int print_error(lua_State* state, int error) {
-    switch (error)
-    {
+    switch (error) {
     case LUA_ERRSYNTAX:
         std::cerr << "LUA_ERRSYNTAX";
         break;
@@ -23,7 +22,7 @@ int print_error(lua_State* state, int error) {
     // The error message is on top of the stack.
     // Fetch it, print it and then pop it off the stack.
     const char* message = lua_tostring(state, -1);
-    std::cerr << '\t' << message << std::endl;
+    std::cerr << '\t' << message << '\n' << std::endl;
     lua_pop(state, 1);
     return 0;
 }
@@ -51,12 +50,16 @@ bool test_error(lua_State* state, int err) {
 //     lua_pcall(L, nargs, nresults, top);
 // }
 
-Parser::Parser() {
+Script::Script() {
     L = nullptr;
 }
 
-void Parser::initialise(std::string file) {
-    id = file;
+Script::Script(const std::string & id) {
+    this->id = id;
+    L = nullptr;
+}
+
+void Script::initialise(const std::string & file) {
     L = luaL_newstate();
     if (L == NULL) {
         std::cerr << "Failed to create state" << std::endl;
@@ -85,13 +88,15 @@ void Parser::initialise(std::string file) {
     lua_pop(L, 1);
 }
 
-Parser::~Parser() {
-    if (L == nullptr ) return;
-    std::cout << "Closing Lua State" << std::endl;
-    lua_close(L);
+Script::~Script() {
+    // if (L == nullptr ) return;
+    // std::cout << "Closing Lua State" << std::endl;
+    // lua_close(L);
 }
 
-void Parser::run_parser(std::string parse_name, std::string path) {
+void Script::run_parser(const std::string & parse_name, const std::string & path) {
+    //ensures there are at least 4 more slots on the stack
+    lua_checkstack(L, 4);
     lua_pushcfunction(L, error_handler);    //fn
     int err_hndler = lua_gettop(L);
 
@@ -110,24 +115,31 @@ static int test(lua_State * L) {
     return 0;
 }
 
+static int get_id(lua_State * L) {
+    lua_pushnil(L);
+    lua_copy(L, lua_upvalueindex(1), -1);
+    return 1;
+}
+
 static int register_parser(lua_State * L) {
     std::string id = lua_tostring(L, lua_upvalueindex(1));
 
     luaL_checktype(L, 1, LUA_TSTRING);
     std::string fn_name = lua_tostring(L, 1);
-    PARSERS[id].get()->parser_functions.insert(fn_name);
+    SCRIPTS[id].parser_functions.insert(fn_name);
 
     return 0;
 }
 
 std::vector<luaL_Reg> api {
     {"test", test},
+    {"get_id", get_id},
     {"register_parser_raw", register_parser},
     {"run_parser", NULL},
     {NULL, NULL}
 };
 
-void Parser::setup_api() {
+void Script::setup_api() {
     int err;
 
     // create new registry    
@@ -137,10 +149,10 @@ void Parser::setup_api() {
     // lua_setfield(L, LUA_REGISTRYINDEX, "_api");
 
     // create the api table
-    lua_createtable(L, 0, api.size());
-    lua_pushstring(L, id.c_str());
-    luaL_setfuncs(L, api.data(), 1);
-    lua_setglobal(L, "lua_api");
+    lua_createtable(L, 0, api.size());  // {}
+    lua_pushstring(L, id.c_str());      // {} id
+    luaL_setfuncs(L, api.data(), 1);    // { api_functions... }
+    lua_setglobal(L, "lua_api");        //
 
     err = luaL_dofile(L, "lua/api.lua");
     if ( test_error(L, err) ) return;

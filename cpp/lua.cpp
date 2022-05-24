@@ -5,30 +5,31 @@
 
 #include "api.hpp"
 
-std::unordered_map<std::string,Parser_Ptr> PARSERS;
+std::unordered_map<std::string,Script> SCRIPTS;
 
-int main(int argc, char** argv) {
-    if ( argc <= 1 ) {
-        std::cout << "Usage: run lua file(s)\n";
-        std::cout << "Loads and executes Lua programs.\n";
-        return 1;
-    }
+int main() {
+    // load all files in the ./scripts/ directory
+    for (const auto &file : std::filesystem::directory_iterator("./scripts/")) {
+        auto path = file.path();
+        if (path.extension() != ".lua") continue;
 
-    // Execute all programs on the command line
-    for ( int n = 1; n < argc; ++n ) {
-        auto parser = std::make_unique<Parser>();
-        std::string id = argv[n];
-        PARSERS[id] = std::move(parser);
+        std::string id = path.filename();
+        auto parser = Script(id);
+        SCRIPTS[id] = std::move(parser);
 
-        PARSERS[id]->initialise(argv[n]);
+        SCRIPTS[id].initialise(path);
     }
 
     std::cout << std::endl;
-    for (auto &&[name, parser] : PARSERS) {
-        for (auto &&fn : parser.get()->parser_functions) {
-            parser.get()->run_parser(fn, "examples/amadeus/monitor.yaml");
+    for (auto &&[id, script] : SCRIPTS) {
+        for (auto &&parser : script.parser_functions) {
+
+            // pass each parser each file in the directory
+            for (auto &&file : std::filesystem::recursive_directory_iterator("./examples")) {
+                if (file.is_directory()) continue;
+                script.run_parser(parser, file.path());
+            }
         }
-        
     }
     
 }
